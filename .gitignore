@@ -1,0 +1,26 @@
+# Virtual environment
+.venv/
+
+# Python cache and build files
+__pycache__/
+*.pyc
+*.egg-info/
+build/
+dist/
+
+# Tool caches
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+
+# Secrets and local config (important for the next item)
+.env
+
+# Data files (never commit large or raw data)
+data/
+*.csv
+*.parquet
+
+# Editor files
+.vscode/
+.idea/
