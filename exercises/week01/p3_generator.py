@@ -138,4 +138,7 @@ assert clean({"raceId": "1", "driverId": "1", "lap": "1", "milliseconds": "0"}) 
 
 
 if __name__ == "__main__":
+    if len(sys.argv) != 2:
+        raise SystemExit("Usage: python exercises/week01/p3_generator.py path/to/lap_times.csv")
+
     main(Path(sys.argv[1]))
