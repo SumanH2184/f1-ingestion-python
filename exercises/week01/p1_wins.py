@@ -21,3 +21,4 @@ if __name__ == "__main__":
         ("PIA", 2),
         ("VER", 2),
     ]
+    assert top_three_drivers([]) == []
