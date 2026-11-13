@@ -11,17 +11,15 @@ def races_by_season(races: list[tuple[int, str]]) -> dict[int, list[str]]:
 
 
 def team_to_drivers(driver_teams: dict[str, str]) -> dict[str, list[str]]:
-    teams: dict[str, list[str]] = {}  # CHANGE 1: make this a defaultdict(list)
+    teams: defaultdict[str, list[str]] = defaultdict(list)
 
     for driver, team in driver_teams.items():
-        if team not in teams:  # CHANGE 2: delete this line
-            teams[team] = []  # CHANGE 2: and this line
         teams[team].append(driver)
 
     for drivers in teams.values():
         drivers.sort()
 
-    return teams  # CHANGE 3: return a plain dict
+    return dict(teams)
 
 
 if __name__ == "__main__":
