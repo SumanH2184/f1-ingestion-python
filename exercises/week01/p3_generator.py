@@ -1,13 +1,15 @@
+# Peak memory, measured with `python exercises/week01/p3_generator.py data/lap_times.csv`:
+# List version: 153,990,772 bytes (146.9 MiB); streaming version: 52,496 bytes (51.3 KiB).
+
 from __future__ import annotations
 
 import csv
 import sys
 import tracemalloc
 from collections import Counter
-from collections.abc import Callable, Iterable, Iterator, Mapping
+from collections.abc import Iterable, Iterator, Mapping
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TypeVar
 
 
 @dataclass(frozen=True)
@@ -19,7 +21,6 @@ class LapTime:
 
 
 RawRow = Mapping[str, str | None]
-T = TypeVar("T")
 
 # Supports the usual F1 CSV headers, plus snake_case equivalents.
 COLUMN_NAMES: dict[str, tuple[str, ...]] = {
@@ -66,78 +67,94 @@ def clean(row: RawRow) -> tuple[LapTime | None, str | None]:
     )
 
 
-def collect_clean(
+def iter_clean_lap_times(
     rows: Iterable[RawRow],
-) -> tuple[list[LapTime], Counter[str]]:
-    good_rows: list[LapTime] = []
-    bad_rows_by_reason: Counter[str] = Counter()
+    bad_rows_by_reason: Counter[str],
+) -> Iterator[LapTime]:
+    """Yield valid rows while recording each rejected row by reason."""
 
     for row in rows:
         lap_time, reason = clean(row)
 
         if lap_time is not None:
-            good_rows.append(lap_time)
+            yield lap_time
         else:
             bad_rows_by_reason[reason or "unknown error"] += 1
 
-    return good_rows, bad_rows_by_reason
 
-
-def sum_with_list(lap_times: Iterable[LapTime]) -> int:
-    milliseconds = [lap_time.milliseconds for lap_time in lap_times]
-    return sum(milliseconds)
-
-
-def sum_with_generator(lap_times: Iterable[LapTime]) -> int:
-    return sum(lap_time.milliseconds for lap_time in lap_times)
-
-
-def measure(action: Callable[[], T]) -> tuple[T, int]:
+def list_version(csv_path: Path) -> tuple[int, int, Counter[str], int]:
+    bad_rows_by_reason: Counter[str] = Counter()
     tracemalloc.start()
     try:
-        result = action()
+        lap_times = list(iter_clean_lap_times(read_rows(csv_path), bad_rows_by_reason))
+        total = sum(lap_time.milliseconds for lap_time in lap_times)
         _, peak_memory = tracemalloc.get_traced_memory()
-        return result, peak_memory
+        return total, len(lap_times), bad_rows_by_reason, peak_memory
+    finally:
+        tracemalloc.stop()
+
+
+def streaming_version(csv_path: Path) -> tuple[int, int, Counter[str], int]:
+    bad_rows_by_reason: Counter[str] = Counter()
+    tracemalloc.start()
+    try:
+        total = 0
+        good_count = 0
+
+        for lap_time in iter_clean_lap_times(read_rows(csv_path), bad_rows_by_reason):
+            total += lap_time.milliseconds
+            good_count += 1
+
+        _, peak_memory = tracemalloc.get_traced_memory()
+        return total, good_count, bad_rows_by_reason, peak_memory
     finally:
         tracemalloc.stop()
 
 
 def main(csv_path: Path) -> None:
-    lap_times, bad_rows_by_reason = collect_clean(read_rows(csv_path))
-    bad_count = sum(bad_rows_by_reason.values())
+    list_total, list_good_count, list_bad_rows, list_peak = list_version(csv_path)
+    streaming_total, streaming_good_count, streaming_bad_rows, streaming_peak = streaming_version(
+        csv_path
+    )
 
-    list_total, list_peak = measure(lambda: sum_with_list(lap_times))
-    generator_total, generator_peak = measure(lambda: sum_with_generator(lap_times))
+    list_bad_count = sum(list_bad_rows.values())
+    streaming_bad_count = sum(streaming_bad_rows.values())
 
-    assert list_total == generator_total
-    assert bad_count == 1_000, f"Expected 1000 bad rows, got {bad_count}"
+    assert list_total == streaming_total
+    assert list_good_count == streaming_good_count
+    assert list_bad_count == streaming_bad_count == 1_000
 
-    print(f"Good rows: {len(lap_times)}")
-    print(f"Bad rows: {bad_count}")
-    print(f"Bad rows by reason: {bad_rows_by_reason}")
-    print(f"List total: {list_total}, peak memory: {list_peak} bytes")
-    print(f"Generator total: {generator_total}, peak memory: {generator_peak} bytes")
-
-
-sample_rows: list[RawRow] = [
-    {"raceId": "1", "driverId": "44", "lap": "2", "milliseconds": "95000"},
-    {"raceId": "1", "driverId": "4", "lap": "2", "milliseconds": "fast"},
-    {"raceId": "1", "driverId": "16", "lap": "2", "milliseconds": "-95000"},
-]
-
-sample_laps, sample_bad_rows = collect_clean(sample_rows)
-
-assert sample_laps == [LapTime(race_id=1, driver_id=44, lap=2, milliseconds=95000)]
-assert sample_bad_rows["not a number"] == 1
-assert sample_bad_rows["non-positive time"] == 1
-assert collect_clean([]) == ([], Counter())
-assert clean({"raceId": "1", "driverId": "1", "lap": "1", "milliseconds": "0"}) == (
-    None,
-    "non-positive time",
-)
+    print(
+        "List version: "
+        f"total={list_total}, good rows={list_good_count}, "
+        f"bad rows={list_bad_count}, peak memory={list_peak} bytes"
+    )
+    print(
+        "Streaming version: "
+        f"total={streaming_total}, good rows={streaming_good_count}, "
+        f"bad rows={streaming_bad_count}, peak memory={streaming_peak} bytes"
+    )
+    print(f"Bad rows by reason: {streaming_bad_rows}")
 
 
 if __name__ == "__main__":
+    sample_rows: list[RawRow] = [
+        {"raceId": "1", "driverId": "44", "lap": "2", "milliseconds": "95000"},
+        {"raceId": "1", "driverId": "4", "lap": "2", "milliseconds": "fast"},
+        {"raceId": "1", "driverId": "16", "lap": "2", "milliseconds": "-95000"},
+    ]
+    sample_bad_rows: Counter[str] = Counter()
+    sample_laps = list(iter_clean_lap_times(sample_rows, sample_bad_rows))
+
+    assert sample_laps == [LapTime(race_id=1, driver_id=44, lap=2, milliseconds=95000)]
+    assert sample_bad_rows["not a number"] == 1
+    assert sample_bad_rows["non-positive time"] == 1
+    assert list(iter_clean_lap_times([], Counter())) == []
+    assert clean({"raceId": "1", "driverId": "1", "lap": "1", "milliseconds": "0"}) == (
+        None,
+        "non-positive time",
+    )
+
     if len(sys.argv) != 2:
         raise SystemExit("Usage: python exercises/week01/p3_generator.py path/to/lap_times.csv")
 
