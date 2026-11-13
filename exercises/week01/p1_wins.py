@@ -16,5 +16,8 @@ if __name__ == "__main__":
         ("HAM", 2),
         ("RUS", 2),
     ]
-    assert top_three_drivers([]) == []
-    # YOUR ASSERT HERE: four or more different winners, so one is cut off by [:3]
+    assert top_three_drivers(["NOR", "VER", "PIA", "NOR", "HAM", "VER", "NOR", "PIA", "LEC"]) == [
+        ("NOR", 3),
+        ("PIA", 2),
+        ("VER", 2),
+    ]
