@@ -24,3 +24,6 @@ data/
 # Editor files
 .vscode/
 .idea/
+
+# Small sample files for the basics lessons are allowed
+!exercises/basics/*.csv
